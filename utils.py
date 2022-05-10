@@ -1,5 +1,7 @@
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
+import pandas as pd
+from datetime import datetime
 
 
 def plot_dataarray_map(dataarray, **plot_kws):
@@ -22,3 +24,31 @@ def plot_dataarray_map(dataarray, **plot_kws):
     gl.top_labels = False
     gl.right_labels = False
     return p
+
+
+def munich_station_monthly(location=".", to_xarray=False):
+    """
+    Open DWD munich station with pandas
+    :param location: (str) absolute or relative location produkt_klima_monat_19540601_20181231_03379.txt file. No slash at end.
+    :param to_xarray: (boolean) if True return xr.Dataset with variables t_mean, t_max, t_min. if False return full pandas DataFrame
+    :return: (pd.DataFrame or xr.Dataset) DataFrame of DWD Munich station
+    """
+    path = location + "/produkt_klima_monat_19540601_20181231_03379.txt"
+    t_monthly_raw = pd.read_table(
+        path,
+        sep=";",  # columns are separated by semicolons
+        date_parser=lambda x: datetime.strptime(x, "%Y%m%d"),  # specify date format
+        parse_dates=[1, 2, ],  # MESS_DATUM_BEGINN and MESS_DATUM_ENDE are dates
+        index_col="MESS_DATUM_BEGINN",  # set index
+    ).rename(
+        columns=lambda x: x.strip()  # removes header white spaces, e.g. " MO_TT" -> "MO_TT"
+    )
+    if to_xarray:
+        t_monthly = (
+            t_monthly_raw[["MO_TT", "MO_TX", "MO_TN"]]  # pick only temperature columns
+                .to_xarray()  # convert pandas DataFrame to xarray Dataset
+                .rename(MESS_DATUM_BEGINN="time", MO_TT="t_mean", MO_TX="t_max", MO_TN="t_min")
+        )
+        return t_monthly
+    else:
+        return t_monthly_raw
