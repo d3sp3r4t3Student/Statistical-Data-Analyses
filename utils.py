@@ -62,12 +62,12 @@ def munich_station_daily(location=".", to_xarray=False):
     :param to_xarray: (boolean) if True return xr.Dataset with variables t_mean, t_max, t_min. if False return full pandas DataFrame
     :return: (pd.DataFrame or xr.Dataset) DataFrame of DWD Munich station
     """
-    path = location + "/produkt_klima_monat_19540601_20181231_03379.txt"
+    path = location + "/produkt_klima_tag_19540601_20191231_03379.txt"
     t_daily_raw = pd.read_table(
         path,
         sep=";",  # columns are separated by semicolons
         date_parser=lambda x: datetime.strptime(x, "%Y%m%d"),  # specify date format
-        parse_dates=[1],  # MESS_DATUM_BEGINN and MESS_DATUM_ENDE are dates
+        parse_dates=[1],  # MESS_DATUM dates
         index_col="MESS_DATUM",  # set index
     ).rename(
         columns=lambda x: x.strip()  # removes header white spaces, e.g. " MO_TT" -> "MO_TT"
