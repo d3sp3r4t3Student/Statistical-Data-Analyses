@@ -81,3 +81,52 @@ def munich_station_daily(location=".", to_xarray=False):
         return t_daily
     else:
         return t_daily_raw
+
+
+def berlin_station_monthly(location=".", to_xarray=False):
+    data_monthly_raw = pd.read_table(
+        location + "/produkt_klima_monat_17190101_20211231_00403.txt",
+        sep=";",
+        date_parser=lambda x: datetime.strptime(x, "%Y%m%d"),
+        parse_dates=[1],
+        index_col="MESS_DATUM_BEGINN",
+        na_values=-999,
+    ).rename(
+        columns=lambda x: x.strip()
+    )  # removes header white spaces, e.g. " TMK" -> "TMK"
+    if to_xarray:
+        data_monthly = (
+            data_monthly_raw[
+                ["MO_TT", "MO_TX", "MO_TN"]
+            ]  # pick only temperature columns
+            .to_xarray()
+            .rename(
+                MESS_DATUM_BEGINN="time", MO_TT="t_mean", MO_TX="t_max", MO_TN="t_min"
+            )
+        )
+        return data_monthly
+    else:
+        return data_monthly_raw
+    
+    
+def get_nao():
+    path = "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.nao.index.b500101.current.ascii"
+    raw = pd.read_table(
+        path,
+        delim_whitespace=True,
+        header=None,
+        names=["year", "month", "day", "NAO"],
+        na_values="*******",
+    )
+
+    dates = pd.to_datetime(raw[["year", "month", "day"]], errors="coerce")
+
+    nao = (
+        raw[["NAO"]]
+        .set_index(dates)
+        .squeeze()
+        .to_xarray()
+        .rename(index="time")
+        .dropna("time")
+    )
+    return nao
