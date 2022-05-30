@@ -2,6 +2,7 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
+import matplotlib.patches as mpatches
 
 
 def plot_dataarray_map(dataarray, **plot_kws):
@@ -130,3 +131,57 @@ def get_nao():
         .dropna("time")
     )
     return nao
+
+
+
+
+def add_box(id, ax, color="k"):
+    if id == "med":
+        ax.add_patch(
+            mpatches.Rectangle(
+                xy=[10, 36],
+                width=20,
+                height=5,
+                edgecolor=color,
+                fill=False,
+                lw=3,
+                transform=ccrs.PlateCarree(),
+            )
+        )
+    elif id == "dk":
+        ax.add_patch(
+            mpatches.Rectangle(
+                xy=[2, 50],
+                width=13,
+                height=10,
+                edgecolor=color,
+                fill=False,
+                lw=3,
+                transform=ccrs.PlateCarree(),
+            )
+        )
+    else:
+        print("invalid id")
+        
+        
+        
+def linear_fit(x, y):
+    # y = a + b * x
+
+    sum_dev = 0
+    
+    for (i,j) in zip(x,y):
+        sum_dev += (i-x.mean())*(j-y.mean())
+    
+    cov_xy = sum_dev/len(x)
+        
+    b = cov_xy/x.std()**2
+    a = y.mean()-b*x.mean()
+
+    return a, b
+
+
+def pearson_r (x,y):
+    a, b = linear_fit(x,y)
+    r = b*x.std()/y.std()
+    return r
