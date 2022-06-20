@@ -185,3 +185,26 @@ def pearson_r (x,y):
     a, b = linear_fit(x,y)
     r = b*x.std()/y.std()
     return r
+
+
+def munich_station_10min(location="./", to_xarray=False):
+    # open file
+
+    data_10min_raw = pd.read_table(
+        location + "/produkt_zehn_min_tu_20181004_20200405_03379.txt",
+        sep=";",
+        date_parser=lambda x: datetime.strptime(x, "%Y%m%d%H%M"),
+        parse_dates=[1],
+        index_col="MESS_DATUM",
+        skipfooter=1,
+        engine="python",
+    ).rename(
+        columns=lambda x: x.strip()
+    )  # removes header white spaces
+    
+    if to_xarray:
+        # convert to xarray
+        data_10min = data_10min_raw[["TT_10"]].to_xarray().rename(MESS_DATUM="time", TT_10="t")
+        return data_10min
+    else:
+        data_10min_raw
