@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
 import matplotlib.patches as mpatches
+import xarray as xr
 
 
 def plot_dataarray_map(dataarray, **plot_kws):
@@ -208,3 +209,38 @@ def munich_station_10min(location="./", to_xarray=False):
         return data_10min
     else:
         data_10min_raw
+        
+        
+def get_qbo():
+    path = "https://www.geo.fu-berlin.de/met/ag/strat/produkte/qbo/qbo.dat"
+    dateparse = lambda x: datetime.strptime(x, "%y%m")
+    qbo = pd.read_table(
+        path,
+        skiprows=381,
+        delim_whitespace=True,
+        index_col=0,
+        usecols=range(1, 9),
+        names=[
+            "IIIII",
+            "time",
+            "70hPa",
+            "50hPa",
+            "40hPa",
+            "30hPa",
+            "20hPa",
+            "15hPa",
+            "10hPa",
+        ],
+        date_parser=dateparse,
+        parse_dates=[0],
+    )
+    qbo_xr = qbo.to_xarray()
+    data = (
+        xr.concat([qbo_xr[v] / 10 for v in qbo_xr.data_vars], dim="p")
+        .assign_coords(p=[int(n[:2]) for n in list(qbo_xr.data_vars)])
+        .rename("u")
+        .assign_attrs(units="m/s")
+    )
+    data["p"] = data.p.assign_attrs(units="hPa", long_name='pressure level')
+    
+    return data
