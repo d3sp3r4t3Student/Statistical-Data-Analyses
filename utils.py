@@ -1,5 +1,6 @@
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from datetime import datetime
 import matplotlib.patches as mpatches
@@ -244,3 +245,60 @@ def get_qbo():
     data["p"] = data.p.assign_attrs(units="hPa", long_name='pressure level')
     
     return data
+
+
+def create_signal(
+    amplitude_and_period, white_noise_amplitude=0, red_noise_amplitude_and_r1=(0, 0.95)
+):
+    """
+    create a random signal that consists of a harmonic wave, red noise and white noise
+    :param amplitude_and_period: list of tuples of floats [(amplitude, period), (amplitude2, period2), ...]
+    :param white_noise_amplitude: amplitude of white noise (float)
+    :param red_noise_amplitude_and_r1: tuple of floats (amplitude, lag-1-autocorr)
+    :return: x, y (np.array, np.array)
+    """
+
+    # create grid and empty signal
+    x = np.linspace(0, 200, 1_001)
+    n = len(x)
+    signal = np.zeros(x.shape)
+
+    # waves
+    waves = []
+    for A, T in amplitude_and_period:
+        print("wave: amplitude={}, period={}".format(A, T))
+        wave = A * np.cos(2 * np.pi / T * x)
+        waves.append(wave)
+        signal = signal + wave
+
+    # white noise
+    signal = signal + white_noise_amplitude * np.random.normal(size=n)
+
+    # red noise
+    rn_A, rn_r1 = red_noise_amplitude_and_r1
+    signal = signal + rn_A * ar1_process(n_samples=n, corr=rn_r1)
+
+    # plot signal
+    fig, ax = plt.subplots()
+    _ = [ax.plot(x, w, alpha=0.8, lw=2.5) for w in waves]
+    ax.plot(x, signal, zorder=-2, c="k", lw=1)
+    ax.axhline(0, c="k", lw=0.5, zorder=-3)
+    ax.set_xlabel("time [s]")
+    ax.set_title("Artificial Signal")
+
+    return x, signal
+
+
+def ar1_process(n_samples, corr, mu=0, sigma=1):
+    assert 0 < corr < 1, "Auto-correlation must be between 0 and 1"
+
+    c = mu * (1 - corr)
+    sigma_e = np.sqrt((sigma ** 2) * (1 - corr ** 2))
+
+    # Sample the auto-regressive process.
+    signal = [c + np.random.normal(0, sigma_e)]
+    for _ in range(1, n_samples):
+        signal.append(c + corr * signal[-1] + np.random.normal(0, sigma_e))
+
+    return np.array(signal)
+
