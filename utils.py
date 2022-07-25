@@ -5,6 +5,8 @@ import pandas as pd
 from datetime import datetime
 import matplotlib.patches as mpatches
 import xarray as xr
+import glob
+import skimage.io
 
 
 def plot_dataarray_map(dataarray, **plot_kws):
@@ -77,9 +79,9 @@ def munich_station_daily(location=".", to_xarray=False):
     )
     if to_xarray:
         t_daily = (
-            t_daily_raw[["TMK", "TXK", "TNK", "RSK"]]  # pick temperature and precipitation columns
+            t_daily_raw[["TMK", "TXK", "TNK", "RSK", "PM"]]  # pick temperature and precipitation columns
                 .to_xarray()  # convert pandas DataFrame to xarray Dataset
-                .rename(MESS_DATUM = "time", TMK="t_mean", TXK="t_max", TNK="t_min", RSK="precip")
+                .rename(MESS_DATUM = "time", TMK="t_mean", TXK="t_max", TNK="t_min", RSK="precip", PM = "pressure")
         )
         return t_daily
     else:
@@ -302,3 +304,75 @@ def ar1_process(n_samples, corr, mu=0, sigma=1):
 
     return np.array(signal)
 
+
+
+def read_satellite_images_ger(path):
+    """
+    Read  satellite images by NASA (https://wvs.earthdata.nasa.gov/?LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&TIME=2000-03-01&COORDINATES=47.000000,5.000000,55.000000,15.000000&FORMAT=image/jpeg&AUTOSCALE=TRUE&RESOLUTION=10km) over Germany and convert into xarray.
+    """
+    n_could_not_open = 0
+    n_weird_shape = 0
+    all_files = glob.glob(path)
+    dates = []
+    imgs = []
+    n = len(all_files)
+    print(f"reading {n} images...")
+
+    for f in all_files:
+        try:
+            img = skimage.io.imread(f)
+        except:
+            n_could_not_open += 1
+        else:
+            if img.shape != (91, 72, 3):
+                n_weird_shape += 1
+            else:
+                imgs.append(img)
+                
+                dates.append(f.split(".")[-2].split("_")[-1])
+
+    imgs = np.array(imgs)
+    dates = pd.DatetimeIndex(dates)
+
+    print(
+    f"Summary:\n   Could not open {n_could_not_open} files (={n_could_not_open / n:.3%})\n   {n_weird_shape} (={n_weird_shape / n:.3%}) images had a weird shape and were skipped"
+    )
+        
+    imgs_xr = xr.DataArray(
+        imgs,
+        dims=["time", "x", "y", "rgb"],
+        coords=dict(time=dates, x=range(91), y=range(72), rgb=["r", "g", "b"]),
+        name="imgs",
+    )
+    return imgs_xr.sortby("time")
+
+
+def munich_berlin_sylt_station_yearly(path):
+    # open file
+
+    locations = ["berlin", "munich", "sylt"]
+    ds_list = []
+
+    for loc in locations:
+        df = pd.read_table(
+            f"{path}/{loc}.txt",
+            sep=";",
+            date_parser=lambda x: datetime.strptime(x, "%Y%m%d"),
+            parse_dates=[1],
+            index_col="MESS_DATUM_BEGINN",
+            skipfooter=1,
+            engine="python",
+            na_values=-999,
+        ).rename(
+            columns=lambda x: x.strip()
+        )  # removes header white spaces
+        # convert to xarray
+        ds = (
+            df[["JA_MX_FX", "JA_RR", "JA_TT"]]  # JA_MX_FX
+            .to_xarray()
+            .rename(MESS_DATUM_BEGINN="time", JA_MX_FX="wind", JA_RR="precip", JA_TT="temp")
+        )
+        ds = ds.astype("float").assign_coords(location=loc)
+        ds_list.append(ds)
+    data = xr.concat(ds_list, dim="location")
+    return data
